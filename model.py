@@ -304,7 +304,7 @@ def main(save_fn='testing.pkl', gpu_id=None):
 
 
                 if i%200 == 0:
-                    print('{:4} | {:1} | Gen: {:6.3f} | Discr: {:6.3f} | Lat: {:5.3}'.format(i, j, gen_loss, discr_loss, gen_latent))
+                    print('{:4} | {:1} | Gen: {:6.3f} | Discr: {:6.3f} | Lat: {:5.3f}'.format(i, j, gen_loss, discr_loss, gen_latent))
 
                 """
                 if i%400 == 0 and j == 2:
@@ -326,6 +326,23 @@ def main(save_fn='testing.pkl', gpu_id=None):
                         ax[1,k].set_axis_off()
 
                     plt.show()#"""
+
+        print('\n'+'-'*80+'Full Task Testing:')
+        acc_list = []
+        for i in range(par['num_final_test_batches']):
+
+            # Run test
+            trial_info  = stim.go_task(subset=False)
+            input_data  = trial_info['neural_input']
+            output_data = trial_info['desired_output']
+            [solutions, entropy_loss] = sess.run([model.outputs_dict['encoder_to_solution'], model.entropy_loss_encoded], feed_dict={x:input_data,y:output_data})
+            acc         = np.mean(np.float32(np.equal(np.argmax(solutions, axis=1), np.argmax(output_data, axis=1))))
+            acc_list.append(acc)
+
+        print('Test | Recon: {:5.3f} | Task: {:5.3f} | Aux: {:5.3f} | Acc: {:5.3f}'.format( \
+            i, recon_loss, task_loss, aux_loss, np.mean(acc_list)))
+        print('-'*80)
+
 
         print('\nTraining Partial Task:')
         for i in range(par['num_train_batches']):
@@ -355,6 +372,23 @@ def main(save_fn='testing.pkl', gpu_id=None):
         sess.run(model.reset_small_omega)
 
 
+        print('\n'+'-'*80+'Full Task Testing:')
+        acc_list = []
+        for i in range(par['num_final_test_batches']):
+
+            # Run test
+            trial_info  = stim.go_task(subset=False)
+            input_data  = trial_info['neural_input']
+            output_data = trial_info['desired_output']
+            [solutions, entropy_loss] = sess.run([model.outputs_dict['encoder_to_solution'], model.entropy_loss_encoded], feed_dict={x:input_data,y:output_data})
+            acc         = np.mean(np.float32(np.equal(np.argmax(solutions, axis=1), np.argmax(output_data, axis=1))))
+            acc_list.append(acc)
+
+        print('Test | Recon: {:5.3f} | Task: {:5.3f} | Aux: {:5.3f} | Acc: {:5.3f}'.format( \
+            i, recon_loss, task_loss, aux_loss, np.mean(acc_list)))
+        print('-'*80)
+
+
         print('\nTraining Task Entropy:')
         for i in range(par['num_entropy_batches']):
 
@@ -382,24 +416,21 @@ def main(save_fn='testing.pkl', gpu_id=None):
         sess.run(model.reset_prev_vars)
         sess.run(model.reset_small_omega)
 
-
-        print('\nFull Task Testing:')
+        print('\n'+'-'*80+'Full Task Testing:')
+        acc_list = []
         for i in range(par['num_final_test_batches']):
 
             # Run test
             trial_info  = stim.go_task(subset=False)
             input_data  = trial_info['neural_input']
             output_data = trial_info['desired_output']
-            [solutions, entropy_loss]   = sess.run([model.outputs_dict['encoder_to_solution'], model.entropy_loss_encoded], feed_dict={x:input_data,y:output_data})
+            [solutions, entropy_loss] = sess.run([model.outputs_dict['encoder_to_solution'], model.entropy_loss_encoded], feed_dict={x:input_data,y:output_data})
             acc         = np.mean(np.float32(np.equal(np.argmax(solutions, axis=1), np.argmax(output_data, axis=1))))
+            acc_list.append(acc)
 
-            print(np.argmax(output_data, axis=1))
-            print('')
-            print(np.argmax(solutions, axis=1))
-
-            print('{:4} | Recon: {:5.3f} | Task: {:5.3f} | Aux: {:5.3f} | Acc: {:5.3f}'.format( \
-                i, recon_loss, task_loss, aux_loss, acc))
-
+        print('Test | Recon: {:5.3f} | Task: {:5.3f} | Aux: {:5.3f} | Acc: {:5.3f}'.format( \
+            i, recon_loss, task_loss, aux_loss, np.mean(acc_list)))
+        print('-'*80)
 
 if __name__ == '__main__':
     try:
