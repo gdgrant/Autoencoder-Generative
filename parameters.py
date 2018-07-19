@@ -33,11 +33,11 @@ par = {
     'solution_hidden'       : [150, 50],
 
     # Training information
-    'batch_size'              : 256,
-    'num_autoencoder_batches' : 3001,
-    'num_GAN_batches'         : 3001,
-    'num_train_batches'       : 3001,
-    'num_entropy_batches'     : 3001,
+    'batch_size'              : 512,
+    'num_autoencoder_batches' : 2001,
+    'num_GAN_batches'         : 2001,
+    'num_train_batches'       : 2001,
+    'num_entropy_batches'     : 2001,
     'num_final_test_batches'  : 10,
 
     # Stabilization
