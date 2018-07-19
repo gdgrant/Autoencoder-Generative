@@ -6,6 +6,7 @@ import go_stim as stimulus
 import os, sys, time
 
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID" # so the IDs match nvidia-smi
 print('TensorFlow version:\t', tf.__version__, '\n')
 
 class Model:
@@ -400,4 +401,11 @@ def main(save_fn='testing.pkl', gpu_id=None):
                 i, recon_loss, task_loss, aux_loss, acc))
 
 
-main()
+if __name__ == '__main__':
+    try:
+        if len(sys.argv) > 1:
+            main('testing.pkl', sys.argv[1])
+        else:
+            main('testing.pkl')
+    except KeyboardInterrupt:
+        print('Quit by KeyboardInterrupt.')
