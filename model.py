@@ -92,9 +92,10 @@ class Model:
 
                     if n == len(par[output_scope])-2:
                         y = y @ W + b
+                        y = tf.nn.relu(y)
 
-                        if scope == 'generator':
-                            y = tf.nn.softmax(y)
+                        #if scope == 'generator':
+                        #    y = tf.nn.softmax(y)
 
                     else:
                         y = tf.nn.relu(y @ W + b)
@@ -123,7 +124,7 @@ class Model:
             self.task_loss = tf.reduce_mean(tf.square(self.outputs_dict['encoder_to_solution']-self.target_data))
         elif par['task'] == 'go':
             self.task_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2( \
-                logits=tf.nn.relu(self.outputs_dict['encoder_to_solution']), labels=self.target_data+eps))
+                logits=self.outputs_dict['encoder_to_solution'], labels=self.target_data+eps))
 
             y_prob = tf.nn.softmax(self.outputs_dict['generator_to_solution'])
             self.entropy_loss = -tf.reduce_mean(-y_prob * tf.log(y_prob))
@@ -231,15 +232,6 @@ class Model:
                 update_small_omega_ops.append(tf.assign_add(small_omega_var[var.op.name], -self.delta_grads[var.op.name]*grad))
             self.update_small_omega = tf.group(*update_small_omega_ops) # 1) update small_omega after each train!
 
-        # Calculate the gradients and update the small omegas
-        # This is called every batch
-        with tf.control_dependencies([self.train_task]):
-            self.delta_grads = opt.return_delta_grads()
-            self.gradients = optimizer_task.compute_gradients(self.task_loss, var_list = vars)
-            for grad,var in self.gradients:
-                update_small_omega_ops.append(tf.assign_add(small_omega_var[var.op.name], -self.delta_grads[var.op.name]*grad))
-            self.update_small_omega = tf.group(*update_small_omega_ops) # 1) update small_omega after each train!
-
         with tf.control_dependencies([self.train_task_entropy]):
             self.delta_grads = opt.return_delta_grads()
             self.gradients = optimizer_task.compute_gradients(self.entropy_loss, var_list = vars)
@@ -286,6 +278,9 @@ def main(save_fn='testing.pkl', gpu_id=None):
                 print('{:4} | Recon: {:5.3f} | Lat: {:5.3f}'.format(i, recon_loss, latent_loss))
 
 
+        sess.run(model.reset_adam_op)
+
+
         print('\nTraining GAN:')
         for i in range(par['num_GAN_batches']):
 
@@ -326,6 +321,9 @@ def main(save_fn='testing.pkl', gpu_id=None):
                         ax[1,k].set_axis_off()
 
                     plt.show()#"""
+
+
+        sess.run(model.reset_adam_op)
 
 
         print('\nTraining Partial Task:')
@@ -375,33 +373,41 @@ def main(save_fn='testing.pkl', gpu_id=None):
                 solutions   = sess.run(model.outputs_dict['generator_to_solution'], feed_dict={x:input_data,y:output_data})
                 acc         = np.mean(np.float32(np.equal(np.argmax(solutions, axis=1), np.argmax(output_data, axis=1))))
 
-                print('{:4} | Recon: {:5.3f} | Task: {:5.3f} | Aux: {:5.3f} | Ent: {:5.3f} | Acc: {:5.3f}'.format( \
-                    i, recon_loss, task_loss, aux_loss, entropy_loss, acc))
+                print('{:4} | Recon: {:5.3f} | Task: {:5.3f} | Aux: {:5.3f} | Ent: {:5.3f}'.format( \
+                    i, recon_loss, task_loss, aux_loss, entropy_loss))
+
+
+                #print('\n'+'-'*80+'\nFull Task Testing:')
+                acc_list = []
+                for i in range(par['num_final_test_batches']):
+
+                    # Run test
+                    trial_info  = stim.go_task(subset=False)
+                    input_data  = trial_info['neural_input']
+                    output_data = trial_info['desired_output']
+                    [solutions, entropy_loss] = sess.run([model.outputs_dict['encoder_to_solution'], model.entropy_loss_encoded], feed_dict={x:input_data,y:output_data})
+                    acc         = np.mean(np.float32(np.equal(np.argmax(solutions, axis=1), np.argmax(output_data, axis=1))))
+                    acc_list.append(acc)
+
+                    #print(' {} | Acc: {:5.3f} | Ent: {:5.3f}'.format(i, acc, entropy_loss))
+
+                recon_loss, task_loss, entropy_loss, aux_loss = sess.run([model.recon_loss, model.task_loss, model.entropy_loss_encoded, model.aux_loss], feed_dict={x:input_data,y:output_data})
+
+                print(' --- | Recon: {:5.3f} | Task: {:5.3f} | Aux: {:5.3f} | Mean Acc: {:5.3f} '.format( \
+                    recon_loss, task_loss, aux_loss, np.mean(np.array(acc_list))))#+'\n'+'-'*80)
 
         sess.run(model.update_big_omega)
         sess.run(model.reset_adam_op)
         sess.run(model.reset_prev_vars)
         sess.run(model.reset_small_omega)
 
-        print('\n'+'-'*80+'\nFull Task Testing:')
-        acc_list = []
-        for i in range(par['num_final_test_batches']):
+def var_check(var_set):
 
-            # Run test
-            trial_info  = stim.go_task(subset=False)
-            input_data  = trial_info['neural_input']
-            output_data = trial_info['desired_output']
-            [solutions, entropy_loss] = sess.run([model.outputs_dict['encoder_to_solution'], model.entropy_loss_encoded], feed_dict={x:input_data,y:output_data})
-            acc         = np.mean(np.float32(np.equal(np.argmax(solutions, axis=1), np.argmax(output_data, axis=1))))
-            acc_list.append(acc)
+    print('\nChecking variable values.')
+    for s in var_set.keys():
+        for n in var_set[s].keys():
+            print((s+'/'+n+'-->').ljust(20)+'{:10.5f} {:10.5f}'.format(np.mean(var_set[s][n]), np.std(var_set[s][n])))
 
-            print(' {} | Acc: {:5.3f}'.format(i, acc))
-
-        recon_loss, task_loss, entropy_loss, aux_loss = sess.run([model.recon_loss, model.task_loss, model.entropy_loss, model.aux_loss], feed_dict={x:input_data,y:output_data})
-
-        print('Test | Recon: {:5.3f} | Task: {:5.3f} | Aux: {:5.3f} | Mean Acc: {:5.3f}'.format( \
-            i, recon_loss, task_loss, aux_loss, np.mean(acc_list)))
-        print('-'*80)
 
 if __name__ == '__main__':
     try:

@@ -16,7 +16,7 @@ class GoStim:
     def go_task(self, subset=False):
 
         # Setting up
-        
+
         resp = np.zeros([par['batch_size'], par['num_motion_dirs']+1, par['num_motion_locs'], par['num_motion_locs']])
 
         pm = [1., 0.]       # [0.75, 0.25]
@@ -25,9 +25,16 @@ class GoStim:
         motion   = np.random.choice([True, False], size=par['batch_size'], p=pm)
         fixation = np.random.choice([True, False], size=par['batch_size'], p=pf)
 
-        locs = par['num_motion_locs']//2 if subset else par['num_motion_locs']
+        if True:
+            locs = par['num_motion_locs']//2 if subset else par['num_motion_locs']
+            dirs = par['num_motion_dirs']
+        else:
+            locs = par['num_motion_locs']
+            dirs = par['num_motion_dirs']//2 if subset else par['num_motion_dirs']
+
+
         locations = np.random.choice(locs, size=[par['batch_size'],2])
-        direction = np.random.choice(par['num_motion_dirs'], size=[par['batch_size'],1])
+        direction = np.random.choice(dirs, size=[par['batch_size'],1])
 
         x_ref = np.arange(par['num_motion_locs'])[:,np.newaxis] * np.ones([1,par['num_motion_locs']])
         y_ref = np.transpose(x_ref)
