@@ -48,8 +48,9 @@ class GoStim:
         angular = np.angle(np.exp(1j*self.motion_dirs[direction] - 1j*self.motion_dirs[np.newaxis,...]))
         stim_motion = np.exp(-1/2 * np.square(angular))
 
+        modifier = 0.01 if par['test_from_input'] else 1.
         activity  = spatial[...,np.newaxis] * stim_motion[:,np.newaxis,np.newaxis,:]
-        activity *= (1. + np.random.gamma(1., size=[par['batch_size'],1,1,1]))
+        activity *= (1. + modifier*np.random.gamma(1., size=[par['batch_size'],1,1,1]))
 
         motion_exp = np.reshape(motion, [-1,1,1,1])
         resp[:,:-1,:,:]     = np.where(motion_exp, np.transpose(activity, [0,3,1,2]), np.zeros([1,1,1,1]))
