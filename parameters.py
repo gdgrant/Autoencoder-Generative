@@ -32,13 +32,19 @@ par = {
     'discriminator_hidden'  : [300],
     'solution_hidden'       : [150, 50],
 
+    'test_from_input'       : False,
+
     # Training information
     'batch_size'              : 512,
-    'num_autoencoder_batches' : 2001,
-    'num_GAN_batches'         : 2001,
-    'num_train_batches'       : 2001,
-    'num_entropy_batches'     : 2001,
+    'num_autoencoder_batches' : 3001,
+    'num_GAN_batches'         : 3001,
+    'num_train_batches'       : 3001,
+    'num_entropy_batches'     : 3001,
     'num_final_test_batches'  : 10,
+
+    # Costs
+    'act_latent_cost'         : 16e-5,
+    'gen_latent_cost'         : 16e-5,
 
     # Stabilization
     'omega_c'                 : 0.0,
