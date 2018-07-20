@@ -41,6 +41,8 @@ class Model:
 
     def run_model(self):
 
+        print_variables()
+
         self.outputs_dict = {}
 
         for scope in ['encoder', 'generator']:
@@ -148,7 +150,7 @@ class Model:
 
         si = self.outputs_dict['encoder_sig']
         mu = self.outputs_dict['encoder_mu']
-        self.act_latent_loss = 16e-5 * -0.5*tf.reduce_mean(tf.reduce_sum(1+si-tf.square(mu)-tf.exp(si),axis=-1))
+        self.act_latent_loss = par['act_latent_cost']* -0.5*tf.reduce_mean(tf.reduce_sum(1+si-tf.square(mu)-tf.exp(si),axis=-1))
 
         self.train_VAE = opt.compute_gradients(self.recon_loss + self.act_latent_loss, var_list=VAE_vars)
 
@@ -162,7 +164,7 @@ class Model:
 
         si = self.outputs_dict['generator_sig']
         mu = self.outputs_dict['generator_mu']
-        self.gen_latent_loss = 16e-5 * -0.5*tf.reduce_mean(tf.reduce_sum(1+si-tf.square(mu)-tf.exp(si),axis=-1))
+        self.gen_latent_loss = par['gen_latent_cost'] * -0.5*tf.reduce_mean(tf.reduce_sum(1+si-tf.square(mu)-tf.exp(si),axis=-1))
 
         self.generator_loss = self.gener_gen_loss + self.gener_act_loss + self.gen_latent_loss
         self.discriminator_loss = self.discr_gen_loss + self.discr_act_loss
@@ -297,30 +299,13 @@ def main(save_fn='testing.pkl', gpu_id=None):
                 _, gen_loss, discr_loss, gen_latent, outputs_dict = sess.run([trainer, model.generator_loss, \
                 model.discriminator_loss, model.gen_latent_loss, model.outputs_dict], feed_dict={x:input_data,y:output_data})
 
+                if i%200 == 0 and j in [0,2]:
+                    if j == 0:
+                        curr = 'G'
+                    else:
+                        curr = 'D'
 
-                if i%200 == 0:
-                    print('{:4} | {:1} | Gen: {:6.3f} | Discr: {:6.3f} | Lat: {:5.3f}'.format(i, j, gen_loss, discr_loss, gen_latent))
-
-                """
-                if i%400 == 0 and j == 2:
-
-                    fig, ax = plt.subplots(2, 4, figsize=[12,8])
-
-                    output = outputs_dict['generator_reconstruction'][:4]
-                    output = np.reshape(output, [-1,9,10,10])
-
-                    decisions = outputs_dict['generator_to_discriminator'][:4]
-
-                    for k in range(4):
-
-                        ax[0,k].imshow(np.sum(output[k], axis=0), clim=[0,3])
-                        ax[0,k].set_title('Example {}, Axis 0\nD=[{:.2f}, {:.2f}]'.format(k, decisions[k][0], decisions[k][1]))
-                        ax[0,k].set_axis_off()
-                        ax[1,k].imshow(np.sum(output[k], axis=1), clim=[0,3])
-                        ax[1,k].set_title('Example {}, Axis 1'.format(k))
-                        ax[1,k].set_axis_off()
-
-                    plt.show()#"""
+                    print('{:4} | {} | Gen: {:6.3f} | Discr: {:6.3f} | Lat: {:5.3f}'.format(i, curr, gen_loss, discr_loss, gen_latent))
 
 
         sess.run(model.reset_adam_op)
@@ -347,6 +332,7 @@ def main(save_fn='testing.pkl', gpu_id=None):
 
                 print('{:4} | Recon: {:5.3f} | Task: {:5.3f} | Aux: {:5.3f} | Acc: {:5.3f}'.format( \
                     i, recon_loss, task_loss, aux_loss, acc))
+
 
         sess.run(model.update_big_omega)
         sess.run(model.reset_adam_op)
@@ -396,10 +382,12 @@ def main(save_fn='testing.pkl', gpu_id=None):
                 print(' --- | Recon: {:5.3f} | Task: {:5.3f} | Aux: {:5.3f} | Mean Acc: {:5.3f} '.format( \
                     recon_loss, task_loss, aux_loss, np.mean(np.array(acc_list))))#+'\n'+'-'*80)
 
+
         sess.run(model.update_big_omega)
         sess.run(model.reset_adam_op)
         sess.run(model.reset_prev_vars)
         sess.run(model.reset_small_omega)
+
 
 def var_check(var_set):
 
@@ -407,6 +395,18 @@ def var_check(var_set):
     for s in var_set.keys():
         for n in var_set[s].keys():
             print((s+'/'+n+'-->').ljust(20)+'{:10.5f} {:10.5f}'.format(np.mean(var_set[s][n]), np.std(var_set[s][n])))
+
+
+def print_variables():
+
+    checked_keys = ['learning_rate', 'num_motion_dirs', 'num_motion_locs', 'n_latent', \
+        'num_autoencoder_batches', 'num_GAN_batches', 'num_train_batches', 'num_entropy_batches', \
+        'act_latent_cost', 'gen_latent_cost']
+
+    print('')
+    for k in checked_keys:
+        print(k.ljust(25), '|', par[k])
+    print('')
 
 
 if __name__ == '__main__':
