@@ -41,8 +41,6 @@ class Model:
 
     def run_model(self):
 
-        print_variables()
-
         self.outputs_dict = {}
 
         for scope in ['encoder', 'generator']:
@@ -254,6 +252,8 @@ def main(save_fn='testing.pkl', gpu_id=None):
 
     if gpu_id is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
+
+    print_variables()
 
     stim = stimulus.GoStim()
     tf.reset_default_graph()
