@@ -87,7 +87,12 @@ class Model:
 
             # Discriminating and solving from reconstrution
             for output_scope in ['discriminator', 'solution']:
-                y = recon
+
+                if par['test_from_input'] and scope == 'encoder' and output_scope == 'solution':
+                    y = self.input_data
+                else:
+                    y = recon
+
                 for n in range(len(par[output_scope][1:])):
                     W = self.var_dict[output_scope]['W{}'.format(n)]
                     b = self.var_dict[output_scope]['b{}'.format(n)]
@@ -401,7 +406,7 @@ def print_variables():
 
     checked_keys = ['learning_rate', 'num_motion_dirs', 'num_motion_locs', 'n_latent', \
         'num_autoencoder_batches', 'num_GAN_batches', 'num_train_batches', 'num_entropy_batches', \
-        'act_latent_cost', 'gen_latent_cost']
+        'act_latent_cost', 'gen_latent_cost', 'test_from_input']
 
     print('')
     for k in checked_keys:
