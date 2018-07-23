@@ -86,7 +86,9 @@ class Model:
             # Discriminating and solving from reconstrution
             for output_scope in ['discriminator', 'solution']:
 
-                if par['test_from_input'] and scope == 'encoder' and output_scope == 'solution':
+                if par['solve_from_latent'] and output_scope == 'solution':
+                    y = latent
+                elif par['test_from_input'] and scope == 'encoder' and output_scope == 'solution':
                     y = self.input_data
                 else:
                     y = recon
@@ -406,7 +408,7 @@ def print_variables():
 
     checked_keys = ['learning_rate', 'num_motion_dirs', 'num_motion_locs', 'n_latent', \
         'num_autoencoder_batches', 'num_GAN_batches', 'num_train_batches', 'num_entropy_batches', \
-        'act_latent_cost', 'gen_latent_cost', 'test_from_input']
+        'act_latent_cost', 'gen_latent_cost', 'test_from_input', 'solve_from_latent']
 
     print('')
     for k in checked_keys:

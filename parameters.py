@@ -33,6 +33,7 @@ par = {
     'solution_hidden'       : [150, 50],
 
     'test_from_input'       : False,
+    'solve_from_latent'     : False,
 
     # Training information
     'batch_size'              : 512,
@@ -68,12 +69,17 @@ def update_parameters(updates):
 
 def update_dependencies():
 
+    if par['test_from_input'] and par['solve_from_latent']:
+        raise Exception('Only have one of [test from input] OR [solve from latent] active at a time.')
+
     par['n_input']  = par['num_motion_locs']**2 * (par['num_motion_dirs']+1)
+
 
     if par['task'] == 'trig':
         par['n_output'] = 2
     elif par['task'] == 'go':
         par['n_output'] = par['num_motion_dirs'] + 1
+
 
     par['scope_names'] = ['encoder', 'decoder', 'generator', 'discriminator', 'solution']
 
@@ -81,7 +87,9 @@ def update_dependencies():
     par['generator']        = [par['n_generator']] + par['generator_hidden'] + [par['n_latent']]
     par['decoder']          = [par['n_latent']] + par['decoder_hidden'] + [par['n_input']]
     par['discriminator']    = [par['n_input']] + par['discriminator_hidden'] + [2]
-    par['solution']         = [par['n_input']] + par['solution_hidden'] + [par['n_output']]
+
+    sol_dim0                = par['n_latent'] if par['solve_from_latent'] else par['n_input']
+    par['solution']         = [sol_dim0] + par['solution_hidden'] + [par['n_output']]
 
 
     par['discriminator_gen_target'] = np.zeros([par['batch_size'], par['n_discriminator']])
