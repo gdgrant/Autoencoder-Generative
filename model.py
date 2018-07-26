@@ -4,6 +4,7 @@ import AdamOpt
 from parameters import *
 import go_stim as stimulus
 import os, sys, time
+import pickle
 
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID" # so the IDs match nvidia-smi
@@ -143,7 +144,7 @@ class Model:
         self.aux_loss, prev_weights, reset_prev_vars_ops = self.pathint_loss(task_vars) # Loss calculation
 
         self.train_task = opt.compute_gradients(self.task_loss + self.aux_loss, var_list=task_vars)
-        self.train_task_entropy = opt.compute_gradients(self.entropy_loss + self.aux_loss, var_list=task_vars)
+        self.train_task_entropy = opt.compute_gradients(self.entropy_loss, var_list=task_vars)
 
         self.pathint_stabilization(opt, prev_weights, task_vars)    # Weight stabilization
         self.reset_prev_vars = tf.group(*reset_prev_vars_ops)
@@ -250,7 +251,7 @@ class Model:
 
 
 
-def main(save_fn='testing.pkl', gpu_id=None):
+def main(save_fn='testing', gpu_id=None):
 
     if gpu_id is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
@@ -346,6 +347,33 @@ def main(save_fn='testing.pkl', gpu_id=None):
         sess.run(model.reset_prev_vars)
         sess.run(model.reset_small_omega)
 
+        acc_list = []
+        all_acc_list = []
+        for i in range(par['num_final_test_batches']):
+
+            # Run test
+            trial_info  = stim.go_task(subset=False)
+            input_data  = trial_info['neural_input']
+            output_data = trial_info['desired_output']
+            [solutions, entropy_loss] = sess.run([model.outputs_dict['encoder_to_solution'], model.entropy_loss_encoded], feed_dict={x:input_data,y:output_data})
+
+            acc, all_acc = component_accuracy(solutions, output_data)
+            acc_list.append(acc)
+            all_acc_list.append(all_acc)
+
+            #print(' {} | Acc: {:5.3f} | Ent: {:5.3f}'.format(i, acc, entropy_loss))
+
+        recon_loss, task_loss, entropy_loss, aux_loss = sess.run([model.recon_loss, model.task_loss, model.entropy_loss_encoded, model.aux_loss], feed_dict={x:input_data,y:output_data})
+
+        all_acc = np.mean(np.array(all_acc_list), axis=0)
+        print(' --- | Recon: {:5.3f} | Task: {:5.3f} | Aux: {:5.3f} | Mean Acc: {:5.3f} '.format( \
+            recon_loss, task_loss, aux_loss, np.mean(np.array(acc_list))))#+'\n'+'-'*80)
+        print(' --- | Component Accuracies:', np.round(all_acc, 2))
+
+        var_dict = sess.run(model.var_dict)
+        save_data(save_fn+'_post_partial', var_dict, input_data, output_data, acc)
+
+
 
         print('\nTraining Task Entropy:')
         for i in range(par['num_entropy_batches']):
@@ -372,28 +400,66 @@ def main(save_fn='testing.pkl', gpu_id=None):
 
                 #print('\n'+'-'*80+'\nFull Task Testing:')
                 acc_list = []
-                for i in range(par['num_final_test_batches']):
+                all_acc_list = []
+                for _ in range(par['num_final_test_batches']):
 
                     # Run test
                     trial_info  = stim.go_task(subset=False)
                     input_data  = trial_info['neural_input']
                     output_data = trial_info['desired_output']
                     [solutions, entropy_loss] = sess.run([model.outputs_dict['encoder_to_solution'], model.entropy_loss_encoded], feed_dict={x:input_data,y:output_data})
-                    acc         = np.mean(np.float32(np.equal(np.argmax(solutions, axis=1), np.argmax(output_data, axis=1))))
+
+                    acc, all_acc = component_accuracy(solutions, output_data)
                     acc_list.append(acc)
+                    all_acc_list.append(all_acc)
 
                     #print(' {} | Acc: {:5.3f} | Ent: {:5.3f}'.format(i, acc, entropy_loss))
 
+                var_dict = sess.run(model.var_dict)
+                save_data(save_fn+'_entropy{}'.format(i), var_dict, input_data, output_data, acc)
+
                 recon_loss, task_loss, entropy_loss, aux_loss = sess.run([model.recon_loss, model.task_loss, model.entropy_loss_encoded, model.aux_loss], feed_dict={x:input_data,y:output_data})
 
+                all_acc = np.mean(np.array(all_acc_list), axis=0)
                 print(' --- | Recon: {:5.3f} | Task: {:5.3f} | Aux: {:5.3f} | Mean Acc: {:5.3f} '.format( \
                     recon_loss, task_loss, aux_loss, np.mean(np.array(acc_list))))#+'\n'+'-'*80)
+                print(' --- | Component Accuracies:', np.round(all_acc, 2))
 
 
         sess.run(model.update_big_omega)
         sess.run(model.reset_adam_op)
         sess.run(model.reset_prev_vars)
         sess.run(model.reset_small_omega)
+
+
+def component_accuracy(output, target):
+
+    corrects = np.zeros(par['n_output'])
+    counts   = np.zeros(par['n_output'])
+
+    output_inds = np.argmax(output, axis=1)
+    target_inds = np.argmax(target, axis=1)
+
+
+    for n in range(output_inds.shape[0]):
+        counts[target_inds[n]] += 1
+        if output_inds[n] == target_inds[n]:
+            corrects[target_inds[n]] += 1
+
+    acc_componenets = corrects / counts #np.where(counts==0., 1e-7, counts)
+    mean_acc = np.sum(corrects)/np.sum(counts)
+
+    return mean_acc, acc_componenets
+
+
+def save_data(savefn, vars, inputs, targets, acc):
+
+    info = {'vars':vars, 'input':inputs, 'target':targets, 'batch_acc':acc}
+
+    with open('./savedir/'+savefn+'.pkl', 'wb') as f:
+        pickle.dump(info, f)
+
+
 
 
 def var_check(var_set):
@@ -408,7 +474,7 @@ def print_variables():
 
     checked_keys = ['learning_rate', 'num_motion_dirs', 'num_motion_locs', 'n_latent', \
         'num_autoencoder_batches', 'num_GAN_batches', 'num_train_batches', 'num_entropy_batches', \
-        'act_latent_cost', 'gen_latent_cost', 'test_from_input', 'solve_from_latent']
+        'act_latent_cost', 'gen_latent_cost', 'nonuniform_probs', 'test_from_input', 'solve_from_latent']
 
     print('')
     for k in checked_keys:
@@ -418,9 +484,11 @@ def print_variables():
 
 if __name__ == '__main__':
     try:
-        if len(sys.argv) > 1:
-            main('testing.pkl', sys.argv[1])
+        if len(sys.argv) > 2:
+            main(sys.argv[2], sys.argv[1])
+        elif len(sys.argv) > 1:
+            main('testing', sys.argv[1])
         else:
-            main('testing.pkl')
+            main('testing')
     except KeyboardInterrupt:
         print('Quit by KeyboardInterrupt.')
