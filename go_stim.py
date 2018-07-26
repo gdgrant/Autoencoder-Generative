@@ -19,8 +19,8 @@ class GoStim:
 
         resp = np.zeros([par['batch_size'], par['num_motion_dirs']+1, par['num_motion_locs'], par['num_motion_locs']])
 
-        pm = [1., 0.]       # [0.75, 0.25]
-        pf = [0., 1.]       # [0.25, 0.75]
+        pm = [par['pct_motion'], 1.-par['pct_motion']]
+        pf = [par['pct_fixation'], 1.-par['pct_fixation']]
 
         motion   = np.random.choice([True, False], size=par['batch_size'], p=pm)
         fixation = np.random.choice([True, False], size=par['batch_size'], p=pf)
@@ -28,13 +28,20 @@ class GoStim:
         if True:
             locs = par['num_motion_locs']//2 if subset else par['num_motion_locs']
             dirs = par['num_motion_dirs']
+
+            p_locs = par['locations_probs_subset'] if subset else par['locations_probs_full']
+            p_dirs = par['direction_probs_full']
+
         else:
             locs = par['num_motion_locs']
             dirs = par['num_motion_dirs']//2 if subset else par['num_motion_dirs']
 
+            p_locs = par['locations_probs_full']
+            p_dirs = par['direction_probs_subset'] if subset else par['direction_probs_full']
 
-        locations = np.random.choice(locs, size=[par['batch_size'],2])
-        direction = np.random.choice(dirs, size=[par['batch_size'],1])
+
+        locations = np.random.choice(locs, size=[par['batch_size'],2], p=None)
+        direction = np.random.choice(dirs, size=[par['batch_size'],1], p=None)
 
         x_ref = np.arange(par['num_motion_locs'])[:,np.newaxis] * np.ones([1,par['num_motion_locs']])
         y_ref = np.transpose(x_ref)
@@ -70,7 +77,10 @@ class GoStim:
             # Labels corresponding to direction
             output = np.zeros(self.output_shape)
             for i, (d, f) in enumerate(zip(np.squeeze(direction), fixation)):
-                output[i,d] = 0 if f else 1
+                d_ = (d + par['num_motion_dirs']//2)%par['num_motion_dirs']
+                dc = d_ if par['antigo'] else d
+                output[i,dc] = 0 if f else 1
+                output[i,-1] = 1 if f else 0
             self.trial_info['desired_output'] = output
 
         return self.trial_info
